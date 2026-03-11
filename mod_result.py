@@ -15,7 +15,6 @@ class ModuleResult(PluginModuleBase):
 
     def process_command(self, command, arg1, arg2, arg3, req):
         db_path = get_db_path(P.ModelSetting.get('base_storage_db_path'))
-        init_db(db_path)
         if command == 'summary':
             runs = RunStore.list_recent(db_path=db_path)
             return jsonify({'ret': 'success', 'summary': {'mode': P.ModelSetting.get('task_run_mode'), 'note': P.ModelSetting.get('result_last_run_summary'), 'latest_run': runs[0] if runs else None}})

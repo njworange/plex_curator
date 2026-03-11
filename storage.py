@@ -5,6 +5,7 @@ from datetime import datetime
 
 
 DB_FILENAME = 'plex_curator.sqlite3'
+_INITIALIZED_DB_PATHS = set()
 
 
 def utcnow():
@@ -22,13 +23,16 @@ def get_db_path(custom_path=''):
 
 
 def connect(db_path=''):
-    con = sqlite3.connect(get_db_path(db_path))
+    con = sqlite3.connect(get_db_path(db_path), timeout=10)
     con.row_factory = sqlite3.Row
     return con
 
 
-def init_db(db_path=''):
-    with connect(db_path) as con:
+def init_db(db_path='', force=False):
+    resolved = get_db_path(db_path)
+    if force is False and resolved in _INITIALIZED_DB_PATHS:
+        return
+    with connect(resolved) as con:
         con.executescript(
             """
             CREATE TABLE IF NOT EXISTS curator_run (
@@ -97,6 +101,7 @@ def init_db(db_path=''):
             """
         )
         _ensure_candidate_columns(con)
+    _INITIALIZED_DB_PATHS.add(resolved)
 
 
 def _ensure_candidate_columns(con):
