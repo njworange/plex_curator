@@ -11,6 +11,7 @@ class ModuleTask(PluginModuleBase):
         self.db_default = {
             f'{self.name}_db_version': '1',
             'task_run_mode': 'log_only',
+            'task_debug_logging': 'True',
             'task_schedule_cron': '',
             'task_scan_after_refresh': 'True',
             'task_require_manual_review': 'True',
@@ -37,6 +38,8 @@ class ModuleTask(PluginModuleBase):
                 'scan_after_refresh': P.ModelSetting.get_bool('task_scan_after_refresh'),
                 'require_manual_review': P.ModelSetting.get_bool('task_require_manual_review'),
                 'delete_action': P.ModelSetting.get('task_delete_action'),
+                'debug_logging': P.ModelSetting.get_bool('task_debug_logging'),
+                'logger': getattr(P, 'logger', None),
             }
             init_db(db_path)
             ret = run_dry_curator(settings)

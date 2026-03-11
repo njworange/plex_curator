@@ -14,6 +14,10 @@ class PlexDbAdapter(object):
         con.row_factory = sqlite3.Row
         return con
 
+    def _debug(self, debug_callback, message):
+        if debug_callback is not None:
+            debug_callback(message)
+
     def list_sections(self):
         if not self.is_available():
             return []
@@ -21,9 +25,11 @@ class PlexDbAdapter(object):
             rows = con.execute('SELECT id, name, section_type FROM library_sections ORDER BY name').fetchall()
             return [dict(row) for row in rows]
 
-    def fetch_media_candidates(self, section_filter=''):
+    def fetch_media_candidates(self, section_filter='', debug_callback=None):
         if not self.is_available():
+            self._debug(debug_callback, f'Plex DB unavailable: {self.db_path}')
             return []
+        self._debug(debug_callback, f'Plex DB open: {self.db_path}')
         section_values = [x.strip() for x in section_filter.split('|') if x.strip()]
         params = []
         section_sql = ''
@@ -32,6 +38,9 @@ class PlexDbAdapter(object):
             section_sql = f' AND (ls.name IN ({placeholders}) OR CAST(ls.id AS TEXT) IN ({placeholders})) '
             params.extend(section_values)
             params.extend(section_values)
+            self._debug(debug_callback, f'Section filter applied: {section_values}')
+        else:
+            self._debug(debug_callback, 'No section filter applied')
 
         query = (
             "SELECT "
@@ -62,4 +71,5 @@ class PlexDbAdapter(object):
         )
         with self._connect() as con:
             rows = con.execute(query, params).fetchall()
+            self._debug(debug_callback, f'Fetched candidate rows: {len(rows)}')
             return [dict(row) for row in rows]

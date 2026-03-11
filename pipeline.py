@@ -94,22 +94,42 @@ def analyze_candidates(candidates, preferred_release='', preferred_source='', pr
     return grouped
 
 
+def _make_debugger(settings, debug_lines):
+    def debug(message):
+        line = str(message)
+        debug_lines.append(line)
+        logger = settings.get('logger')
+        if settings.get('debug_logging', True) and logger is not None:
+            try:
+                logger.warning(f'[plex_curator] {line}')
+            except Exception:
+                pass
+    return debug
+
+
 def run_dry_curator(settings):
     db_path = settings.get('storage_db_path', '')
     init_db(db_path)
+    debug_lines = []
+    debug = _make_debugger(settings, debug_lines)
+    debug(f'Run start: mode={settings.get("run_mode", "log_only")}, storage_db={db_path}')
     run_id = RunStore.create(
         mode=settings.get('run_mode', 'log_only'),
         status='running',
         plex_db_path=settings.get('plex_db_path', ''),
         target_sections=settings.get('target_sections', ''),
-        summary={'stage': 'starting'},
+        summary={'stage': 'starting', 'debug_lines': debug_lines},
         db_path=db_path,
     )
     try:
         if not settings.get('use_plex_db', True):
+            debug('Dry run aborted because Plex DB usage is disabled')
             raise Exception('Plex DB usage is disabled by settings')
         adapter = PlexDbAdapter(settings.get('plex_db_path', ''))
-        candidates = adapter.fetch_media_candidates(settings.get('target_sections', '')) if adapter.is_available() else []
+        debug(f'Plex DB path configured: {settings.get("plex_db_path", "") or "(empty)"}')
+        candidates = adapter.fetch_media_candidates(settings.get('target_sections', ''), debug_callback=debug) if adapter.is_available() else []
+        if not adapter.is_available():
+            debug('Adapter reported Plex DB unavailable; candidate list will be empty')
         grouped = analyze_candidates(
             candidates,
             preferred_release=settings.get('preferred_release', ''),
@@ -121,6 +141,7 @@ def run_dry_curator(settings):
             delete_action=settings.get('delete_action', 'trash'),
             require_manual_review=settings.get('require_manual_review', True),
         )
+        debug(f'Grouped candidates: {len(grouped)} groups from {len(candidates)} candidates')
 
         warnings = []
         if settings.get('scan_after_refresh') and not settings.get('use_plex_web', False):
@@ -134,9 +155,13 @@ def run_dry_curator(settings):
             'duplicate_group_total': len([key for key, items in grouped.items() if len(items) > 1]),
             'ignored_single_group_total': len([key for key, items in grouped.items() if len(items) == 1 and settings.get('ignore_single', False)]),
             'warnings': warnings,
+            'debug_lines': debug_lines,
         }
+        if len(candidates) == 0:
+            debug('No Plex candidates found. Check DB path, section filter, and DB access settings.')
         for group_key, items in grouped.items():
             rationale = 'single candidate' if len(items) == 1 else 'score based winner selected'
+            debug(f'Persist group: {group_key} ({len(items)} candidates)')
             group_id = GroupStore.create(
                 run_id=run_id,
                 media_type=items[0].get('media_type', ''),
@@ -163,7 +188,9 @@ def run_dry_curator(settings):
             DecisionStore.create(run_id, group_id, 'analyzed', note=rationale, payload={'candidate_count': len(items), 'warnings': warnings}, db_path=db_path)
 
         RunStore.update(run_id, status='completed', summary=summary, db_path=db_path)
-        return {'ret': 'success', 'run_id': run_id, 'summary': summary}
+        debug(f'Run complete: run_id={run_id}')
+        return {'ret': 'success', 'run_id': run_id, 'summary': summary, 'debug_lines': debug_lines, 'msg': f'Dry run completed. candidates={len(candidates)}, groups={len(grouped)}'}
     except Exception as e:
-        RunStore.update(run_id, status='failed', error_text=str(e), summary={'stage': 'failed'}, db_path=db_path)
-        return {'ret': 'fail', 'run_id': run_id, 'msg': str(e)}
+        debug(f'Run failed: {str(e)}')
+        RunStore.update(run_id, status='failed', error_text=str(e), summary={'stage': 'failed', 'debug_lines': debug_lines}, db_path=db_path)
+        return {'ret': 'fail', 'run_id': run_id, 'msg': str(e), 'debug_lines': debug_lines}
