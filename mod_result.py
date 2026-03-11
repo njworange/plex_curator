@@ -1,5 +1,6 @@
 from .setup import *
 from .storage import CandidateStore, DecisionStore, GroupStore, RunStore, get_db_path, init_db
+import json
 
 
 class ModuleResult(PluginModuleBase):
@@ -19,10 +20,24 @@ class ModuleResult(PluginModuleBase):
             runs = RunStore.list_recent(db_path=db_path)
             return jsonify({'ret': 'success', 'summary': {'mode': P.ModelSetting.get('task_run_mode'), 'note': P.ModelSetting.get('result_last_run_summary'), 'latest_run': runs[0] if runs else None}})
         elif command == 'runs':
-            return jsonify({'ret': 'success', 'list': RunStore.list_recent(db_path=db_path)})
+            runs = RunStore.list_recent(db_path=db_path)
+            enriched = []
+            for item in runs:
+                summary = {}
+                try:
+                    summary = json.loads(item.get('summary_json') or '{}')
+                except Exception:
+                    summary = {'raw_summary': item.get('summary_json')}
+                item['summary'] = summary
+                enriched.append(item)
+            return jsonify({'ret': 'success', 'list': enriched})
         elif command == 'groups':
             run_id = req.form.get('run_id') or arg1
-            return jsonify({'ret': 'success', 'list': GroupStore.list_by_run(int(run_id), db_path=db_path) if run_id else []})
+            only_duplicates = (req.form.get('only_duplicates') or 'true').lower() == 'true'
+            items = GroupStore.list_by_run(int(run_id), db_path=db_path) if run_id else []
+            if only_duplicates:
+                items = [item for item in items if item.get('candidate_count', 0) > 1]
+            return jsonify({'ret': 'success', 'list': items, 'only_duplicates': only_duplicates})
         elif command == 'group_detail':
             group_id = req.form.get('group_id') or arg1
             if group_id:

@@ -8,6 +8,11 @@
   Dry run 실행 후 중복 그룹과 winner/loser 후보를 여기서 검토할 수 있습니다.
 </div>
 
+<div class="form-check mb-3">
+  <input class="form-check-input" type="checkbox" id="only_duplicates_chk" checked>
+  <label class="form-check-label" for="only_duplicates_chk">중복 그룹만 보기</label>
+</div>
+
 <div class="row">
   <div class="col-md-4">
     <div class="card mb-3">
@@ -45,14 +50,25 @@ function load_runs() {
       if (data.list) {
         for (var i in data.list) {
           var item = data.list[i];
+          var summary = item.summary || {};
           html += '<div class="border rounded p-2 mb-2">';
           html += '<div><strong>#' + item.id + '</strong> [' + item.status + ']</div>';
           html += '<div>' + item.created_at + '</div>';
+          html += '<div>candidates=' + (summary.candidate_total || 0) + ' / groups=' + (summary.group_total || 0) + ' / duplicate_groups=' + (summary.duplicate_group_total || 0) + '</div>';
+          if (summary.warnings && summary.warnings.length > 0) {
+            html += '<div class="text-warning small">warnings: ' + summary.warnings.join(' | ') + '</div>';
+          }
+          if (item.error_text) {
+            html += '<div class="text-danger small">error: ' + item.error_text + '</div>';
+          }
           html += '<div class="mt-2"><button class="btn btn-sm btn-primary run_groups_btn" data-id="' + item.id + '">그룹 보기</button></div>';
           html += '</div>';
         }
       }
       $('#runs_div').html(html || '<div>실행 이력이 없습니다.</div>');
+      if (data.list && data.list.length > 0 && selected_run_id === null) {
+        load_groups(data.list[0].id);
+      }
     }
   });
 }
@@ -64,7 +80,7 @@ function load_groups(run_id) {
     type: 'POST',
     cache: false,
     dataType: 'json',
-    data: {run_id: run_id},
+    data: {run_id: run_id, only_duplicates: $('#only_duplicates_chk').is(':checked') ? 'true' : 'false'},
     success: function(data) {
       var html = '';
       if (data.list) {
@@ -77,7 +93,7 @@ function load_groups(run_id) {
           html += '</div>';
         }
       }
-      $('#groups_div').html(html || '<div>표시할 그룹이 없습니다.</div>');
+      $('#groups_div').html(html || '<div>표시할 그룹이 없습니다. 현재 필터에서는 중복 그룹이 없을 수 있습니다.</div>');
       $('#detail_div').html('');
     }
   });
@@ -122,6 +138,13 @@ function load_detail(group_id) {
 $('body').on('click', '#load_runs_btn', function(e){
   e.preventDefault();
   load_runs();
+});
+
+$('body').on('change', '#only_duplicates_chk', function(e){
+  e.preventDefault();
+  if (selected_run_id !== null) {
+    load_groups(selected_run_id);
+  }
 });
 
 $('body').on('click', '.run_groups_btn', function(e){

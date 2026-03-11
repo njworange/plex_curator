@@ -1,5 +1,5 @@
 title: "Plex Curator"
-version: "0.1.4"
+version: "0.1.5"
 package_name: "plex_curator"
 developer: "njworange"
 description: "Plex 라이브러리 중복 버전 큐레이션"
