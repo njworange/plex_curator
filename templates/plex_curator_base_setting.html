@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 
-{{ macros.m_button_group([['globalSettingSaveBtn', '설정 저장'], ['validate_btn', '연결 검토']])}}
+{{ macros.m_button_group([['globalSettingSaveBtn', '설정 저장'], ['validate_btn', '연결 검토'], ['load_plex_mate_btn', 'plex_mate 설정 불러오기'], ['peek_plex_mate_btn', 'plex_mate 값 확인']])}}
+
+<div id="plex_mate_autofill_notice" class="alert alert-secondary" style="display:none;"></div>
 
 <form id='setting'>
   {{ macros.setting_input_text('base_plex_db_path', 'Plex DB 경로', value=arg['base_plex_db_path'], desc=['Plex DB 파일 경로']) }}
@@ -16,9 +18,59 @@
 </form>
 
 <script type="text/javascript">
+$(document).ready(function(){
+  autofill_from_plex_mate();
+});
+
 $('body').on('click', '#validate_btn', function(e){
   e.preventDefault();
   globalSendCommand('validate');
 });
+
+$('body').on('click', '#load_plex_mate_btn', function(e){
+  e.preventDefault();
+  globalSendCommand('load_plex_mate');
+});
+
+$('body').on('click', '#peek_plex_mate_btn', function(e){
+  e.preventDefault();
+  globalSendCommand('peek_plex_mate');
+});
+
+function autofill_from_plex_mate() {
+  $.ajax({
+    url: '/'+package_name+'/ajax/' + sub + '/peek_plex_mate',
+    type: 'POST',
+    cache: false,
+    dataType: 'json',
+    success: function(data) {
+      if (!data || data.ret !== 'success' || !data.data) {
+        return;
+      }
+      var filled = [];
+      filled = filled.concat(autofill_input_if_empty('#base_plex_db_path', data.data.plex_db_path, 'Plex DB 경로'));
+      filled = filled.concat(autofill_input_if_empty('#base_plex_url', data.data.plex_url, 'Plex URL'));
+      filled = filled.concat(autofill_input_if_empty('#base_library_root_hint', data.data.library_root_hint, '라이브러리 경로 힌트'));
+      if (filled.length > 0) {
+        $('#plex_mate_autofill_notice').html('plex_mate 설정을 감지해서 빈 필드에 기본값으로 채웠습니다: ' + filled.join(', ') + '. 보안을 위해 Plex Token은 자동 감지 대상에서 제외됩니다.').show();
+      }
+    }
+  });
+}
+
+function autofill_input_if_empty(selector, value, label) {
+  if (!value) {
+    return [];
+  }
+  var target = $(selector);
+  if (target.length === 0) {
+    return [];
+  }
+  if ($.trim(target.val()) !== '') {
+    return [];
+  }
+  target.val(value);
+  return [label];
+}
 </script>
 {% endblock %}
