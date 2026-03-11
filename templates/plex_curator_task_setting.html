@@ -23,9 +23,17 @@
 </div>
 
 <script type="text/javascript">
+var task_poll_timer = null;
+var task_poll_attempts = 0;
+
 $('body').on('click', '#run_dry_btn', function(e){
   e.preventDefault();
-  run_task_command('run_dry', 'Dry run 요청을 전송했습니다...');
+  set_task_request_state('Dry run 요청을 전송했습니다...', 'info');
+  set_task_buttons_disabled(true);
+  $('#task_result_summary').text('command dispatched via globalSendCommand');
+  $('#task_result_log').text('requesting...');
+  globalSendCommand('run_dry');
+  start_task_status_polling('run_dry');
 });
 
 $('body').on('click', '#run_review_btn', function(e){
@@ -65,6 +73,76 @@ function run_task_command(command, runningMessage) {
       set_task_buttons_disabled(false);
     }
   });
+}
+
+function start_task_status_polling(command) {
+  stop_task_status_polling();
+  task_poll_attempts = 0;
+  task_poll_timer = setInterval(function() {
+    task_poll_attempts += 1;
+    $.ajax({
+      url: '/'+package_name+'/ajax/' + sub + '/status',
+      type: 'POST',
+      cache: false,
+      dataType: 'json',
+      success: function(data) {
+        if (data && data.latest_run) {
+          render_latest_run_status(data.latest_run);
+          var summary = parse_summary_json(data.latest_run.summary_json);
+          if (data.latest_run.status === 'completed' || data.latest_run.status === 'failed') {
+            stop_task_status_polling();
+            set_task_buttons_disabled(false);
+            render_task_result({
+              ret: data.latest_run.status === 'completed' ? 'success' : 'fail',
+              msg: data.latest_run.error_text || ('Latest run status: ' + data.latest_run.status),
+              run_id: data.latest_run.id,
+              summary: summary
+            });
+          }
+        }
+      },
+      error: function(xhr, status, errorThrown) {
+        stop_task_status_polling();
+        set_task_buttons_disabled(false);
+        render_task_error(command + '/status', xhr, status, errorThrown);
+      }
+    });
+
+    if (task_poll_attempts >= 30) {
+      stop_task_status_polling();
+      set_task_buttons_disabled(false);
+      set_task_request_state('요청은 보냈지만 30초 안에 완료 상태를 확인하지 못했습니다. 결과 탭과 플러그인 로그를 확인하세요.', 'warning');
+      $('#task_result_log').text($('#task_result_log').text() + '\n\nstatus polling timeout after 30 attempts');
+    }
+  }, 1000);
+}
+
+function stop_task_status_polling() {
+  if (task_poll_timer) {
+    clearInterval(task_poll_timer);
+    task_poll_timer = null;
+  }
+}
+
+function parse_summary_json(raw) {
+  if (!raw) {
+    return {};
+  }
+  if (typeof raw === 'object') {
+    return raw;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return {raw_excerpt: String(raw).substring(0, 1200)};
+  }
+}
+
+function render_latest_run_status(latestRun) {
+  if (!latestRun) {
+    return;
+  }
+  set_task_request_state('최근 실행 #' + latestRun.id + ' 상태: ' + latestRun.status, latestRun.status === 'failed' ? 'danger' : 'info');
 }
 
 function set_task_buttons_disabled(disabled) {

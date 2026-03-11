@@ -51,7 +51,9 @@ class ModuleTask(PluginModuleBase):
             return jsonify({'ret': 'success', 'msg': '리뷰 큐는 결과 메뉴에서 승인/보류 상태를 바꾸며 운영합니다.'})
         elif command == 'status':
             db_path = get_db_path(P.ModelSetting.get('base_storage_db_path'))
-            return jsonify({'ret': 'success', 'runs': RunStore.list_recent(db_path=db_path)})
+            runs = RunStore.list_recent(db_path=db_path)
+            latest_run = runs[0] if runs else None
+            return jsonify({'ret': 'success', 'runs': runs, 'latest_run': latest_run})
         elif command == 'ping_plex':
             adapter = PlexWebAdapter(P.ModelSetting.get('base_plex_url'), P.ModelSetting.get('base_plex_token'))
             return jsonify(adapter.ping())
