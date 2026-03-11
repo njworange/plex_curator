@@ -29,8 +29,14 @@ class ModuleResult(PluginModuleBase):
                 except Exception:
                     summary = {'raw_summary': item.get('summary_json')}
                 item['summary'] = summary
+                item['candidate_total'] = summary.get('candidate_total', 0)
+                item['group_total'] = summary.get('group_total', 0)
+                item['duplicate_group_total'] = summary.get('duplicate_group_total', 0)
+                item['warnings'] = summary.get('warnings', [])
+                item['debug_lines'] = summary.get('debug_lines', [])
                 enriched.append(item)
-            return jsonify({'ret': 'success', 'list': enriched})
+            latest_run = enriched[0] if enriched else None
+            return jsonify({'ret': 'success', 'list': enriched, 'latest_run': latest_run})
         elif command == 'groups':
             run_id = req.form.get('run_id') or arg1
             only_duplicates = (req.form.get('only_duplicates') or 'true').lower() == 'true'

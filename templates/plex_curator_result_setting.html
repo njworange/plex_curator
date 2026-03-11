@@ -8,6 +8,8 @@
   Dry run 실행 후 중복 그룹과 winner/loser 후보를 여기서 검토할 수 있습니다.
 </div>
 
+<div id="result_request_state" class="alert alert-secondary" style="display:none;"></div>
+
 <div class="form-check mb-3">
   <input class="form-check-input" type="checkbox" id="only_duplicates_chk" checked>
   <label class="form-check-label" for="only_duplicates_chk">중복 그룹만 보기</label>
@@ -40,23 +42,30 @@ $(document).ready(function(){
 });
 
 function load_runs() {
+  set_result_request_state('실행 목록을 불러오는 중입니다...', 'info');
+  $('#runs_div').html('<div>loading...</div>');
   $.ajax({
     url: '/'+package_name+'/ajax/' + sub + '/runs',
     type: 'POST',
     cache: false,
     dataType: 'json',
     success: function(data) {
+      if (!data || data.ret !== 'success') {
+        set_result_request_state('실행 목록 응답은 왔지만 애플리케이션 레벨에서 실패했습니다.', 'warning');
+        $('#runs_div').html('<div>실행 목록 응답이 비정상입니다.</div>');
+        return;
+      }
       var html = '';
       if (data.list) {
         for (var i in data.list) {
           var item = data.list[i];
-          var summary = item.summary || {};
+          var warnings = Array.isArray(item.warnings) ? item.warnings : [];
           html += '<div class="border rounded p-2 mb-2">';
           html += '<div><strong>#' + item.id + '</strong> [' + item.status + ']</div>';
           html += '<div>' + item.created_at + '</div>';
-          html += '<div>candidates=' + (summary.candidate_total || 0) + ' / groups=' + (summary.group_total || 0) + ' / duplicate_groups=' + (summary.duplicate_group_total || 0) + '</div>';
-          if (summary.warnings && summary.warnings.length > 0) {
-            html += '<div class="text-warning small">warnings: ' + summary.warnings.join(' | ') + '</div>';
+          html += '<div>candidates=' + (item.candidate_total || 0) + ' / groups=' + (item.group_total || 0) + ' / duplicate_groups=' + (item.duplicate_group_total || 0) + '</div>';
+          if (warnings.length > 0) {
+            html += '<div class="text-warning small">warnings: ' + warnings.join(' | ') + '</div>';
           }
           if (item.error_text) {
             html += '<div class="text-danger small">error: ' + item.error_text + '</div>';
@@ -66,15 +75,21 @@ function load_runs() {
         }
       }
       $('#runs_div').html(html || '<div>실행 이력이 없습니다.</div>');
+      set_result_request_state('실행 목록을 불러왔습니다.', 'success');
       if (data.list && data.list.length > 0 && selected_run_id === null) {
         load_groups(data.list[0].id);
       }
+    },
+    error: function(xhr, status, errorThrown) {
+      render_result_error('runs', xhr, status, errorThrown);
     }
   });
 }
 
 function load_groups(run_id) {
   selected_run_id = run_id;
+  set_result_request_state('그룹 목록을 불러오는 중입니다...', 'info');
+  $('#groups_div').html('<div>loading...</div>');
   $.ajax({
     url: '/'+package_name+'/ajax/' + sub + '/groups',
     type: 'POST',
@@ -82,6 +97,11 @@ function load_groups(run_id) {
     dataType: 'json',
     data: {run_id: run_id, only_duplicates: $('#only_duplicates_chk').is(':checked') ? 'true' : 'false'},
     success: function(data) {
+      if (!data || data.ret !== 'success') {
+        set_result_request_state('그룹 응답은 왔지만 애플리케이션 레벨에서 실패했습니다.', 'warning');
+        $('#groups_div').html('<div>그룹 응답이 비정상입니다.</div>');
+        return;
+      }
       var html = '';
       if (data.list) {
         for (var i in data.list) {
@@ -95,11 +115,17 @@ function load_groups(run_id) {
       }
       $('#groups_div').html(html || '<div>표시할 그룹이 없습니다. 현재 필터에서는 중복 그룹이 없을 수 있습니다.</div>');
       $('#detail_div').html('');
+      set_result_request_state('그룹 목록을 불러왔습니다.', 'success');
+    },
+    error: function(xhr, status, errorThrown) {
+      render_result_error('groups', xhr, status, errorThrown);
     }
   });
 }
 
 function load_detail(group_id) {
+  set_result_request_state('그룹 상세를 불러오는 중입니다...', 'info');
+  $('#detail_div').html('<div>loading...</div>');
   $.ajax({
     url: '/'+package_name+'/ajax/' + sub + '/group_detail',
     type: 'POST',
@@ -107,6 +133,11 @@ function load_detail(group_id) {
     dataType: 'json',
     data: {group_id: group_id},
     success: function(data) {
+      if (!data || data.ret !== 'success') {
+        set_result_request_state('그룹 상세 응답은 왔지만 애플리케이션 레벨에서 실패했습니다.', 'warning');
+        $('#detail_div').html('<div>그룹 상세 응답이 비정상입니다.</div>');
+        return;
+      }
       var html = '';
       if (data.group) {
         html += '<div class="mb-3"><strong>그룹키:</strong> ' + data.group.group_key + '</div>';
@@ -131,8 +162,52 @@ function load_detail(group_id) {
       html += '<button class="btn btn-sm btn-danger decision_btn" data-group="' + group_id + '" data-action="rejected">제외</button>';
       html += '</div>';
       $('#detail_div').html(html || '<div>상세 정보가 없습니다.</div>');
+      set_result_request_state('그룹 상세를 불러왔습니다.', 'success');
+    },
+    error: function(xhr, status, errorThrown) {
+      render_result_error('group_detail', xhr, status, errorThrown);
     }
   });
+}
+
+function set_result_request_state(message, level) {
+  var target = $('#result_request_state');
+  target.removeClass('alert-secondary alert-info alert-success alert-warning alert-danger');
+  if (level === 'success') {
+    target.addClass('alert-success');
+  } else if (level === 'warning') {
+    target.addClass('alert-warning');
+  } else if (level === 'danger') {
+    target.addClass('alert-danger');
+  } else {
+    target.addClass('alert-info');
+  }
+  target.text(message).show();
+}
+
+function render_result_error(command, xhr, status, errorThrown) {
+  var responseText = '';
+  if (xhr && xhr.responseText) {
+    responseText = xhr.responseText;
+  }
+  responseText = responseText.substring(0, 1200);
+  set_result_request_state(command + ' 요청이 실패했습니다. status=' + (xhr ? xhr.status : '-') + ', error=' + (errorThrown || status || '-'), 'danger');
+  if (command === 'runs') {
+    $('#runs_div').html('<pre style="white-space:pre-wrap;">' + escapeHtml(responseText) + '</pre>');
+  } else if (command === 'groups') {
+    $('#groups_div').html('<pre style="white-space:pre-wrap;">' + escapeHtml(responseText) + '</pre>');
+  } else {
+    $('#detail_div').html('<pre style="white-space:pre-wrap;">' + escapeHtml(responseText) + '</pre>');
+  }
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 $('body').on('click', '#load_runs_btn', function(e){
@@ -166,9 +241,17 @@ $('body').on('click', '.decision_btn', function(e){
     dataType: 'json',
     data: {group_id: $(this).data('group'), run_id: selected_run_id, action: $(this).data('action'), note: ''},
     success: function(data) {
+      if (!data || data.ret !== 'success') {
+        set_result_request_state('리뷰 상태 저장 응답은 왔지만 실패했습니다.', 'warning');
+        return;
+      }
+      set_result_request_state('리뷰 상태를 저장했습니다.', 'success');
       if (selected_run_id) {
         load_groups(selected_run_id);
       }
+    },
+    error: function(xhr, status, errorThrown) {
+      render_result_error('decision', xhr, status, errorThrown);
     }
   });
 });
