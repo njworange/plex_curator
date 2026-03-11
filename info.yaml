@@ -1,0 +1,13 @@
+title: "Plex Curator"
+version: "0.1.0"
+package_name: "plex_curator"
+developer: "njworange"
+description: "Plex 라이브러리 중복 버전 큐레이션"
+home: "https://github.com/njworange/plex_curator"
+more: "https://raw.githubusercontent.com/njworange/plex_curator/main/README.md"
+
+require_plugin: ""
+require_os' : ""
+need_decrypt_code: false
+need_filesize_check': false
+filesize: 0
