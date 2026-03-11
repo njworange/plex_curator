@@ -5,16 +5,33 @@
 
 <form id='setting'>
   {{ macros.setting_select('task_run_mode', '실행 모드', [['log_only', 'log_only'], ['review', 'review'], ['delete', 'delete']], value=arg['task_run_mode'], desc=['초기 운영은 log_only 권장']) }}
+  {{ macros.setting_checkbox('task_debug_logging', '디버그 로그', value=arg['task_debug_logging'], desc=['dry run 단계별 로그를 plugin 로그와 화면에 남깁니다']) }}
   {{ macros.setting_input_text('task_schedule_cron', '스케줄', value=arg['task_schedule_cron'], desc=['후속 구현용 cron 표현식']) }}
   {{ macros.setting_checkbox('task_scan_after_refresh', '실행 전 스캔/새로고침', value=arg['task_scan_after_refresh'], desc=['후속 구현에서 Plex refresh 후 큐레이션 실행']) }}
   {{ macros.setting_checkbox('task_require_manual_review', '수동 검토 필요', value=arg['task_require_manual_review'], desc=['delete 모드 전 강제 검토 여부']) }}
   {{ macros.setting_select('task_delete_action', '삭제 방식', [['trash', 'trash'], ['delete', 'delete']], value=arg['task_delete_action'], desc=['후속 구현에서 loser 처리 방식']) }}
 </form>
 
+<div class="card mt-3">
+  <div class="card-header">최근 dry run 결과</div>
+  <div class="card-body">
+    <div id="task_result_summary" class="mb-2 text-break"></div>
+    <pre id="task_result_log" style="white-space:pre-wrap; max-height:360px; overflow:auto;"></pre>
+  </div>
+</div>
+
 <script type="text/javascript">
 $('body').on('click', '#run_dry_btn', function(e){
   e.preventDefault();
-  globalSendCommand('run_dry');
+  $.ajax({
+    url: '/'+package_name+'/ajax/' + sub + '/run_dry',
+    type: 'POST',
+    cache: false,
+    dataType: 'json',
+    success: function(data) {
+      render_task_result(data);
+    }
+  });
 });
 
 $('body').on('click', '#run_review_btn', function(e){
@@ -24,7 +41,54 @@ $('body').on('click', '#run_review_btn', function(e){
 
 $('body').on('click', '#ping_plex_btn', function(e){
   e.preventDefault();
-  globalSendCommand('ping_plex');
+  $.ajax({
+    url: '/'+package_name+'/ajax/' + sub + '/ping_plex',
+    type: 'POST',
+    cache: false,
+    dataType: 'json',
+    success: function(data) {
+      render_task_result(data);
+    }
+  });
 });
+
+function render_task_result(data) {
+  if (!data) {
+    return;
+  }
+  var summary = [];
+  if (data.ret) {
+    summary.push('ret=' + data.ret);
+  }
+  if (data.msg) {
+    summary.push(data.msg);
+  }
+  if (data.run_id) {
+    summary.push('run_id=' + data.run_id);
+  }
+  if (data.summary) {
+    if (typeof data.summary.candidate_total !== 'undefined') {
+      summary.push('candidates=' + data.summary.candidate_total);
+    }
+    if (typeof data.summary.group_total !== 'undefined') {
+      summary.push('groups=' + data.summary.group_total);
+    }
+    if (typeof data.summary.duplicate_group_total !== 'undefined') {
+      summary.push('duplicate_groups=' + data.summary.duplicate_group_total);
+    }
+  }
+  $('#task_result_summary').text(summary.join(' | '));
+
+  var lines = [];
+  if (data.debug_lines) {
+    lines = data.debug_lines;
+  } else if (data.summary && data.summary.debug_lines) {
+    lines = data.summary.debug_lines;
+  }
+  if (data.summary && data.summary.warnings && data.summary.warnings.length > 0) {
+    lines = lines.concat(['--- warnings ---']).concat(data.summary.warnings);
+  }
+  $('#task_result_log').text(lines.join('\n'));
+}
 </script>
 {% endblock %}
