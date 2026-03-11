@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block content %}
+
+{{ macros.m_button_group([['load_runs_btn', '실행 목록 새로고침']])}}
+
+<div class="alert alert-info">
+  <strong>Review Queue</strong><br>
+  Dry run 실행 후 중복 그룹과 winner/loser 후보를 여기서 검토할 수 있습니다.
+</div>
+
+<div class="row">
+  <div class="col-md-4">
+    <div class="card mb-3">
+      <div class="card-header">최근 실행</div>
+      <div class="card-body" id="runs_div"></div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="card mb-3">
+      <div class="card-header">중복 그룹</div>
+      <div class="card-body" id="groups_div"></div>
+    </div>
+    <div class="card">
+      <div class="card-header">그룹 상세</div>
+      <div class="card-body" id="detail_div"></div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+var selected_run_id = null;
+
+$(document).ready(function(){
+  load_runs();
+});
+
+function load_runs() {
+  $.ajax({
+    url: '/'+package_name+'/ajax/' + sub + '/runs',
+    type: 'POST',
+    cache: false,
+    dataType: 'json',
+    success: function(data) {
+      var html = '';
+      if (data.list) {
+        for (var i in data.list) {
+          var item = data.list[i];
+          html += '<div class="border rounded p-2 mb-2">';
+          html += '<div><strong>#' + item.id + '</strong> [' + item.status + ']</div>';
+          html += '<div>' + item.created_at + '</div>';
+          html += '<div class="mt-2"><button class="btn btn-sm btn-primary run_groups_btn" data-id="' + item.id + '">그룹 보기</button></div>';
+          html += '</div>';
+        }
+      }
+      $('#runs_div').html(html || '<div>실행 이력이 없습니다.</div>');
+    }
+  });
+}
+
+function load_groups(run_id) {
+  selected_run_id = run_id;
+  $.ajax({
+    url: '/'+package_name+'/ajax/' + sub + '/groups',
+    type: 'POST',
+    cache: false,
+    dataType: 'json',
+    data: {run_id: run_id},
+    success: function(data) {
+      var html = '';
+      if (data.list) {
+        for (var i in data.list) {
+          var item = data.list[i];
+          html += '<div class="border rounded p-2 mb-2">';
+          html += '<div><strong>' + item.group_key + '</strong></div>';
+          html += '<div>후보 수: ' + item.candidate_count + ' / 상태: ' + item.review_status + '</div>';
+          html += '<div class="mt-2"><button class="btn btn-sm btn-secondary group_detail_btn" data-id="' + item.id + '">상세</button></div>';
+          html += '</div>';
+        }
+      }
+      $('#groups_div').html(html || '<div>표시할 그룹이 없습니다.</div>');
+      $('#detail_div').html('');
+    }
+  });
+}
+
+function load_detail(group_id) {
+  $.ajax({
+    url: '/'+package_name+'/ajax/' + sub + '/group_detail',
+    type: 'POST',
+    cache: false,
+    dataType: 'json',
+    data: {group_id: group_id},
+    success: function(data) {
+      var html = '';
+      if (data.group) {
+        html += '<div class="mb-3"><strong>그룹키:</strong> ' + data.group.group_key + '</div>';
+        html += '<div class="mb-3"><strong>상태:</strong> ' + data.group.review_status + '</div>';
+      }
+      if (data.candidates) {
+        for (var i in data.candidates) {
+          var item = data.candidates[i];
+          html += '<div class="border rounded p-2 mb-2">';
+          html += '<div><strong>' + item.filename + '</strong>' + (item.is_winner ? ' <span class="badge badge-success">winner</span>' : '') + '</div>';
+          html += '<div>점수: ' + item.score + ' / 릴그룹: ' + (item.release_group || '-') + '</div>';
+          html += '<div>해상도: ' + (item.resolution || '-') + ' / 코덱: ' + (item.codec || '-') + '</div>';
+          html += '<div>예정 액션: ' + (item.planned_action || '-') + ' / 상태: ' + (item.action_status || '-') + '</div>';
+          html += '<div>사유: ' + (item.action_reason || '-') + '</div>';
+          html += '<div>경로: ' + item.filepath + '</div>';
+          html += '</div>';
+        }
+      }
+      html += '<div class="mt-3">';
+      html += '<button class="btn btn-sm btn-success decision_btn" data-group="' + group_id + '" data-action="approved">승인</button> ';
+      html += '<button class="btn btn-sm btn-warning decision_btn" data-group="' + group_id + '" data-action="hold">보류</button> ';
+      html += '<button class="btn btn-sm btn-danger decision_btn" data-group="' + group_id + '" data-action="rejected">제외</button>';
+      html += '</div>';
+      $('#detail_div').html(html || '<div>상세 정보가 없습니다.</div>');
+    }
+  });
+}
+
+$('body').on('click', '#load_runs_btn', function(e){
+  e.preventDefault();
+  load_runs();
+});
+
+$('body').on('click', '.run_groups_btn', function(e){
+  e.preventDefault();
+  load_groups($(this).data('id'));
+});
+
+$('body').on('click', '.group_detail_btn', function(e){
+  e.preventDefault();
+  load_detail($(this).data('id'));
+});
+
+$('body').on('click', '.decision_btn', function(e){
+  e.preventDefault();
+  $.ajax({
+    url: '/'+package_name+'/ajax/' + sub + '/decision',
+    type: 'POST',
+    cache: false,
+    dataType: 'json',
+    data: {group_id: $(this).data('group'), run_id: selected_run_id, action: $(this).data('action'), note: ''},
+    success: function(data) {
+      if (selected_run_id) {
+        load_groups(selected_run_id);
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

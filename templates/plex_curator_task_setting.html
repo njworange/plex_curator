@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+
+{{ macros.m_button_group([['globalSettingSaveBtn', '설정 저장'], ['run_dry_btn', 'Dry Run'], ['run_review_btn', 'Review Queue'], ['ping_plex_btn', 'Plex Ping']])}}
+
+<form id='setting'>
+  {{ macros.setting_select('task_run_mode', '실행 모드', [['log_only', 'log_only'], ['review', 'review'], ['delete', 'delete']], value=arg['task_run_mode'], desc=['초기 운영은 log_only 권장']) }}
+  {{ macros.setting_input_text('task_schedule_cron', '스케줄', value=arg['task_schedule_cron'], desc=['후속 구현용 cron 표현식']) }}
+  {{ macros.setting_checkbox('task_scan_after_refresh', '실행 전 스캔/새로고침', value=arg['task_scan_after_refresh'], desc=['후속 구현에서 Plex refresh 후 큐레이션 실행']) }}
+  {{ macros.setting_checkbox('task_require_manual_review', '수동 검토 필요', value=arg['task_require_manual_review'], desc=['delete 모드 전 강제 검토 여부']) }}
+  {{ macros.setting_select('task_delete_action', '삭제 방식', [['trash', 'trash'], ['delete', 'delete']], value=arg['task_delete_action'], desc=['후속 구현에서 loser 처리 방식']) }}
+</form>
+
+<script type="text/javascript">
+$('body').on('click', '#run_dry_btn', function(e){
+  e.preventDefault();
+  globalSendCommand('run_dry');
+});
+
+$('body').on('click', '#run_review_btn', function(e){
+  e.preventDefault();
+  globalSendCommand('run_review');
+});
+
+$('body').on('click', '#ping_plex_btn', function(e){
+  e.preventDefault();
+  globalSendCommand('ping_plex');
+});
+</script>
+{% endblock %}

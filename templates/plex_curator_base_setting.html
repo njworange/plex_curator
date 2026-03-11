@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+
+{{ macros.m_button_group([['globalSettingSaveBtn', '설정 저장'], ['validate_btn', '연결 검토']])}}
+
+<form id='setting'>
+  {{ macros.setting_input_text('base_plex_db_path', 'Plex DB 경로', value=arg['base_plex_db_path'], desc=['Plex DB 파일 경로']) }}
+  {{ macros.setting_input_text('base_plex_url', 'Plex URL', value=arg['base_plex_url'], desc=['예: http://127.0.0.1:32400']) }}
+  {{ macros.setting_input_text('base_plex_token', 'Plex Token', value=arg['base_plex_token'], desc=['Plex Web/API 접근 토큰']) }}
+  {{ macros.setting_input_text('base_storage_db_path', 'Curator 저장소 DB 경로', value=arg['base_storage_db_path'], desc=['비워두면 플러그인 폴더에 plex_curator.sqlite3 생성']) }}
+  {{ macros.setting_input_text('base_target_sections', '대상 라이브러리', value=arg['base_target_sections'], desc=['섹션 이름 또는 ID를 | 로 구분']) }}
+  {{ macros.setting_input_text('base_library_root_hint', '라이브러리 경로 힌트', value=arg['base_library_root_hint'], desc=['후속 구현에서 media path 매핑에 사용']) }}
+  {{ macros.setting_checkbox('base_use_plex_db', 'Plex DB 사용', value=arg['base_use_plex_db'], desc=['DB 기반 후보 조회 허용']) }}
+  {{ macros.setting_checkbox('base_use_plex_web', 'Plex Web 사용', value=arg['base_use_plex_web'], desc=['Web API 기반 refresh 또는 trash 처리 허용']) }}
+  {{ macros.info_text('', '메모', arg['base_plugin_note']) }}
+</form>
+
+<script type="text/javascript">
+$('body').on('click', '#validate_btn', function(e){
+  e.preventDefault();
+  globalSendCommand('validate');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+
+{{ macros.m_button_group([['globalSettingSaveBtn', '설정 저장'], ['preview_btn', '파일명 미리보기']])}}
+
+<form id='setting'>
+  {{ macros.setting_input_text('rule_preferred_release_groups', '선호 릴그룹', value=arg['rule_preferred_release_groups'], desc=['예: F1RST|ST|KN|SW']) }}
+  {{ macros.setting_input_text('rule_preferred_sources', '선호 소스 태그', value=arg['rule_preferred_sources'], desc=['예: WEB-DL|NF|AMZN|DSNP|HDTV']) }}
+  {{ macros.setting_input_text('rule_preferred_resolutions', '선호 해상도', value=arg['rule_preferred_resolutions'], desc=['예: 2160p|1080p|720p|480p']) }}
+  {{ macros.setting_checkbox('rule_ignore_single_candidates', '단일 후보 무시', value=arg['rule_ignore_single_candidates'], desc=['후속 구현에서 중복 그룹만 리뷰 대상으로 제한']) }}
+  {{ macros.setting_checkbox('rule_group_by_plex_metadata_first', 'Plex 메타 우선 그룹핑', value=arg['rule_group_by_plex_metadata_first'], desc=['가능하면 Plex 메타를 기준으로 그룹핑']) }}
+  {{ macros.setting_input_textarea('rule_filename_sample', '파일명 샘플', value=arg['rule_filename_sample'], row=6, desc=['줄 단위로 파일명을 넣고 미리보기를 실행하세요']) }}
+</form>
+
+<div id="preview_div" class="mt-3"></div>
+
+<script type="text/javascript">
+$('body').on('click', '#preview_btn', function(e){
+  e.preventDefault();
+  $.ajax({
+    url: '/'+package_name+'/ajax/' + sub + '/preview',
+    type: 'POST',
+    cache: false,
+    dataType: 'json',
+    data: {sample: $('#rule_filename_sample').val()},
+    success: function(data) {
+      var html = '';
+      if (data.items) {
+        for (var i in data.items) {
+          var item = data.items[i];
+          html += '<div class="card mb-2"><div class="card-body">';
+          html += '<div><strong>파일:</strong> ' + item.filename + '</div>';
+          html += '<div><strong>그룹키:</strong> ' + item.group_key + '</div>';
+          html += '<div><strong>제목:</strong> ' + item.title + '</div>';
+          html += '<div><strong>토큰:</strong> ' + item.episode_token + '</div>';
+          html += '<div><strong>릴그룹:</strong> ' + item.release_group + '</div>';
+          html += '<div><strong>소스:</strong> ' + item.sources.join(', ') + '</div>';
+          html += '<div><strong>해상도:</strong> ' + item.resolution + '</div>';
+          html += '<div><strong>코덱:</strong> ' + item.codec + '</div>';
+          html += '<div><strong>점수:</strong> ' + item.score + '</div>';
+          html += '</div></div>';
+        }
+      }
+      $('#preview_div').html(html);
+    }
+  });
+});
+</script>
+{% endblock %}
